@@ -57,6 +57,30 @@ docsync 是一个可自托管的在线表格同步工具：团队继续在钉钉
 
 ![数据库连接](docs/images/datasources.png)
 
+### 应用中心与表单管理
+
+接入平台应用、登记在线表格并查看子表，从子表开始配置同步。完整操作见 [图文使用指南](docs/USAGE.md)。
+
+![应用中心](docs/images/apps.png)
+
+![表单管理](docs/images/docs.png)
+
+### 读取预览与配置
+
+核对表头、数据起始行、列范围和样本，配置清洗规则、选列、字段映射、写入目标及定时通知。
+
+![读取数据与样本预览](docs/images/read-data.png)
+
+### 日志详情与后置动作
+
+打开单次执行查看日志和数据质量，配置同步后的接口请求与通知。
+
+![执行日志详情](docs/images/run-log.png)
+
+![后置动作](docs/images/actions.png)
+
+[查看完整操作截图：添加表单 → 子表 → 读数据 → 清洗规则 → 字段映射 → 写入目标 → 定时通知 → 测试运行](docs/USAGE.md)
+
 ## 从安装到第一次同步
 
 1. 按下方 Docker 步骤启动，或阅读 [Linux 手动部署说明](DEPLOYMENT.md)。

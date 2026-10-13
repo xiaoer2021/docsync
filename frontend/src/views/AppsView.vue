@@ -537,7 +537,7 @@ onMounted(async () => {
         <h1 class="page-title">应用中心</h1>
         <div class="page-sub">
           应用是读在线表格的钥匙。选平台、填凭证、定操作人，之后所有表单都复用它。
-          现在支持钉钉；飞书、WPS、Google Docs 已在计划里，接入方式会走同一套流程。
+          支持钉钉、飞书和 WPS 个人文档；Google Sheets 与 WPS 开发者 API 暂未接入。
         </div>
       </div>
       <el-button v-if="auth.isAdmin" type="primary" @click="openCreate">接入应用</el-button>
