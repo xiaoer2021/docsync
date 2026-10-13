@@ -1,0 +1,46 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ---- 运行时数据（日志、临时文件、本地元数据库）----
+data/
+*.db
+*.db-journal
+.dev_master.key
+
+# ---- 前端 ----
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# ---- 本地配置 ----
+.env
+.env.local
+.env.*
+!.env.example
+!.env.manual.example
+*.log
+*.zip
+*.xlsx
+*.xls
+*.csv
+*.tsv
+*.sql
+*.sql.gz
+*.pem
+*.key
+!backend/requirements*.txt
+backups/
+private/
+
+# ---- 编辑器 / IDE ----
+.idea/
+.vscode/
+*.swp
+card_*.csv

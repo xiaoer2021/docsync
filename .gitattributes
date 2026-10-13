@@ -1,0 +1,7 @@
+# 本地是 Windows、服务器是 Linux，不统一换行符的话
+# 每次 diff 都会看到「整个文件都变了」——那不是真改动。
+* text=auto eol=lf
+
+# 这几个必须是 CRLF：Windows 上双击才能正常跑
+*.bat text eol=crlf
+*.ps1 text eol=crlf

@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>在线表格同步</title>
+    <!-- 网页图标（浏览器标签页、书签、历史记录）。
+         三个都写是有原因的：
+           .ico  —— 老浏览器只认这个，也是 /favicon.ico 的兜底
+           32png —— 现代浏览器，比 ico 清晰
+           180   —— iOS 加到主屏时的图标，不给的话会自己截一张页面截图
+         favicon.ico 放在 public/ 根目录，浏览器不认 link 也会自动去拿。 -->
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" type="image/png" href="/favicon-32.png" sizes="32x32" />
+    <link rel="apple-touch-icon" href="/favicon-180.png" />
+    <!-- 手机地址栏的配色，跟着 logo 的主色走 -->
+    <meta name="theme-color" content="#1746e8" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

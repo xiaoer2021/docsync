@@ -1,0 +1,15 @@
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+data
+*.db
+.dev_master.key
+.env
+.env.*
+*.key
+*.pem
+*.log
+tests
