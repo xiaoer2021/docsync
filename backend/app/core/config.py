@@ -11,10 +11,14 @@ from pathlib import Path
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_ENV_FILES = (".env", "../.env")
+if os.environ.get("DOCSYNC_AUTO_SETUP", "false").lower() == "true":
+    _ENV_FILES += (str(Path(os.environ.get("DOCSYNC_DATA_DIR", "./data")) / "runtime.env"),)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env", "../.env"),
+        env_file=_ENV_FILES,
         env_prefix="DOCSYNC_",
         extra="ignore",
         case_sensitive=False,

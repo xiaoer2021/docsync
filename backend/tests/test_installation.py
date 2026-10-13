@@ -105,9 +105,9 @@ def test_container_bootstrap_preserves_secrets_and_changed_admin_password(tmp_pa
     second = run(str(script), env=env)
     assert second.returncode == 0
     assert secret_file.read_bytes() == original_secrets
-    env.update(dict(line.split("=", 1) for line in original_secrets.decode().splitlines()))
     env.update(
         {
+            "DOCSYNC_AUTO_SETUP": "true",
             "DOCSYNC_ENV": "prod",
             "DOCSYNC_META_DB_URL": f"sqlite+aiosqlite:///{(tmp_path / 'fresh.db').as_posix()}",
             "DOCSYNC_SCHEDULER_ENABLED": "false",
@@ -120,6 +120,7 @@ def test_container_bootstrap_preserves_secrets_and_changed_admin_password(tmp_pa
         return result
 
     result = cli("bootstrap")
+    cli("check")
     password_file = tmp_path / "initial-admin-password"
     initial_password = password_file.read_text().strip()
     assert len(initial_password) >= 24
