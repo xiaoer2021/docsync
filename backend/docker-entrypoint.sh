@@ -4,7 +4,15 @@
 set -e
 
 echo "[docsync] 检查元数据库结构…"
-python -m app.cli initdb
+if [ "${DOCSYNC_AUTO_SETUP:-false}" = "true" ]; then
+    python scripts/bootstrap_config.py
+    set -a
+    . "${DOCSYNC_DATA_DIR:-./data}/runtime.env"
+    set +a
+    python -m app.cli bootstrap
+else
+    python -m app.cli initdb
+fi
 
 echo "[docsync] 启动 API 服务…"
 exec uvicorn app.main:app --host 0.0.0.0 --port 8000

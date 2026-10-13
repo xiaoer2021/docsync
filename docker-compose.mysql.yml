@@ -1,0 +1,59 @@
+name: docsync
+services:
+  # 平台自己用的元数据库（不是你要同步的目标库）。
+  # 不对外暴露端口，只有 api 容器能连。
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env 里设置 MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: docsync
+      MYSQL_USER: docsync
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env 里设置 MYSQL_PASSWORD}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # 后端 + 内嵌调度器，单容器。
+  api:
+    build:
+      context: ./backend
+      args:
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple/}
+    restart: unless-stopped
+    env_file:
+      - .env
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DOCSYNC_META_DB_URL: mysql+asyncmy://docsync:${MYSQL_PASSWORD:?请初始化 .env}@mysql:3306/docsync?charset=utf8mb4
+      DOCSYNC_DATA_DIR: /app/data
+      DOCSYNC_BROWSER_PROFILES_DIR: /data/browser
+      DOCSYNC_WPS_DOWNLOAD_DIR: /app/data/wps-downloads
+    volumes:
+      - ./data:/app/data
+      - ./data/browser:/data/browser
+
+  # 前端 + 反向代理。
+  web:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8090}:80"
+
+volumes:
+  mysql-data:

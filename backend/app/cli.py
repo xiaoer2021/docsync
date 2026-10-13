@@ -5,7 +5,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import getpass
+import os
+import secrets
 import sys
+from collections.abc import Awaitable
 from pathlib import Path
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -68,7 +71,9 @@ async def _create_admin(username: str, password: str, display_name: str | None) 
 
 def cmd_create_admin(args: argparse.Namespace) -> int:
     try:
-        return asyncio.run(_create_admin(args.username, _password(args), args.display_name))
+        return asyncio.run(
+            _database_command(_create_admin(args.username, _password(args), args.display_name))
+        )
     except ValueError as exc:
         print(f"口令不合格：{exc}", file=sys.stderr)
         return 1
@@ -94,7 +99,7 @@ async def _reset_password(username: str, password: str) -> int:
 
 def cmd_reset_password(args: argparse.Namespace) -> int:
     try:
-        return asyncio.run(_reset_password(args.username, _password(args)))
+        return asyncio.run(_database_command(_reset_password(args.username, _password(args))))
     except ValueError as exc:
         print(f"口令不合格：{exc}", file=sys.stderr)
         return 1
@@ -144,7 +149,16 @@ async def _check() -> int:
 
 
 def cmd_check(_: argparse.Namespace) -> int:
-    return asyncio.run(_check())
+    return asyncio.run(_database_command(_check()))
+
+
+async def _database_command(work: Awaitable[int]) -> int:
+    from app.core.db import engine
+
+    try:
+        return await work
+    finally:
+        await engine.dispose()
 
 
 def _password(args: argparse.Namespace) -> str:
@@ -174,10 +188,44 @@ async def _has_admin() -> bool:
 def cmd_setup(args: argparse.Namespace) -> int:
     """Upgrade the schema and create the first administrator without resetting data."""
     cmd_initdb(args)
-    if asyncio.run(_has_admin()):
+    return asyncio.run(_database_command(_setup_admin(args)))
+
+
+async def _setup_admin(args: argparse.Namespace) -> int:
+    if await _has_admin():
         print("已有可用管理员，保留现有账号及数据。")
         return 0
-    return cmd_create_admin(args)
+    try:
+        return await _create_admin(args.username, _password(args), args.display_name)
+    except ValueError as exc:
+        print(f"口令不合格：{exc}", file=sys.stderr)
+        return 1
+
+
+async def _bootstrap_admin() -> int:
+    from app.core.config import settings
+
+    if await _has_admin():
+        print("已有管理员，保留现有账号及数据。")
+        return 0
+    path = settings.data_dir / "initial-admin-password"
+    try:
+        descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        password = path.read_text(encoding="utf-8").strip()
+    else:
+        password = secrets.token_urlsafe(24)
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(password + "\n")
+    result = await _create_admin("admin", password, "Administrator")
+    if result == 0:
+        print("首次管理员已初始化；初始密码保存在数据卷中，不写入日志。")
+    return result
+
+
+def cmd_bootstrap(args: argparse.Namespace) -> int:
+    cmd_initdb(args)
+    return asyncio.run(_database_command(_bootstrap_admin()))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -185,6 +233,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("initdb", help="建表/升级元数据库").set_defaults(func=cmd_initdb)
+    sub.add_parser("bootstrap", help="容器首次初始化，自动生成管理员口令").set_defaults(func=cmd_bootstrap)
 
     p = sub.add_parser("create-admin", help="创建管理员账号")
     p.add_argument("--username", required=True)

@@ -1,118 +1,118 @@
 # docsync · 文档同步中心
 
-将在线表格同步到数据库，并按需触发下游刷新。通过网页登记文档、预览子表、配置字段映射、写入策略及定时任务，无需为每份文档编写脚本。
-完整前后端源码、连接器、迁移及测试均在本仓库，采用 [MIT](LICENSE) 许可，允许修改、商用及自行部署。第三方依赖和品牌说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+将钉钉、飞书和 WPS 在线表格同步到 MySQL / SQL Server，支持字段映射、数据清洗、定时任务和下游通知。完整前后端源码采用 [MIT](LICENSE) 许可。
 
-## 当前支持
+## Linux 服务器快速部署（推荐）
 
-| 来源/目标 | 支持方式 |
-|---|---|
-| 钉钉电子表格、AI/多维表格 | 开放平台 API，配置应用凭证及文档权限 |
-| 飞书电子表格、多维表格 | 开放平台 API，配置应用凭证及文档权限 |
-| WPS 个人版表格 | Chromium 登录/网页授权后下载 xlsx，按工作表名读取，需文档导出权限 |
-| WPS 开发者 API、Google 及其他平台入口 | 尚未实现，不能作为可用连接器使用 |
-| 目标数据库 | MySQL、SQL Server |
-| 元数据库 | Docker 默认 MySQL 8；手动安装默认 SQLite，也可自行配置 MySQL |
+服务器只需要 **Docker Engine 和 Compose v2**。不需要安装 Python、Node.js、MySQL，也不需要准备 `.env` 或手动生成密钥。尚未安装 Docker 时，按 [Docker 官方 Linux 安装说明](https://docs.docker.com/engine/install/)安装，使用 `docker compose version` 验证。
 
-WPS 个人版依赖平台网页及下载服务，属于尽力兼容，不是官方 OpenAPI 接入。公开分享不保证允许导出，私有文档需登录。生产同步不再使用剪贴板复制。
-支持表头选择、合并单元格、日期交叉表、跳过/替换规则、多值拆分、类型转换、异常原文保留、自动建表/补列、主键更新、追加、分区覆盖及整表重写。支持定时调度、实时日志、执行历史、Webhook、钉钉机器人和下游接口动作。
+### 方式一：下载一份 Compose 文件
 
-## Docker 安装（推荐）
-
-需要 Docker Engine/Desktop 和 Compose v2。配置生成器仅需 Python 3.10+ 标准库；推荐 Python 3.11。在项目根目录执行：
+在服务器的新目录执行：
 
 ```bash
-python scripts/init_config.py --mode docker
-docker compose up -d --build --wait
-docker compose exec api python -m app.cli setup
+mkdir -p ~/docsync
+cd ~/docsync
+curl -fsSL https://raw.githubusercontent.com/xiaoer2021/docsync/main/docker-compose.yml -o docker-compose.yml
+docker compose up -d --build --wait --wait-timeout 300
+docker compose exec api cat /app/data/initial-admin-password
+```
+
+访问 `http://服务器IP:8090`，账号为 `admin`，密码为最后一条命令显示的随机初始密码。登录后在用户菜单修改口令。密码不会输出到启动日志；修改后，初始密码文件不再代表当前口令。
+
+首次启动会由 Docker 从 GitHub 获取项目并在容器内安装依赖、构建前后端，耗时取决于网络和服务器性能。服务器需能访问 GitHub、Docker Hub、Debian 包源、PyPI 及 npm。已有服务占用 8090 时，修改下面端口映射的左侧数字。
+
+### 方式二：直接复制完整 Compose 内容
+
+将以下内容保存到服务器空目录的 `docker-compose.yml`，执行上面的启动及密码查看命令即可：
+
+```yaml
+name: docsync
+services:
+  api:
+    image: docsync-api:local
+    build:
+      context: https://github.com/xiaoer2021/docsync.git#${DOCSYNC_REF:-main}:backend
+    restart: unless-stopped
+    init: true
+    environment:
+      DOCSYNC_ENV: prod
+      DOCSYNC_AUTO_SETUP: 'true'
+      DOCSYNC_DATA_DIR: /app/data
+      DOCSYNC_META_DB_URL: sqlite+aiosqlite:////app/data/docsync.db
+      DOCSYNC_WORKER_MAX_CONCURRENCY: '2'
+    volumes:
+      - docsync-data:/app/data
+  web:
+    image: docsync-web:local
+    build:
+      context: https://github.com/xiaoer2021/docsync.git#${DOCSYNC_REF:-main}:frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '8090:80'
+volumes:
+  docsync-data:
+```
+
+默认使用 SQLite 保存系统配置、账号与任务，业务目标库仍在网页中配置。后端、浏览器登录档案、密钥和元数据库统一持久化到 `docsync_docsync-data` 卷。重启或重建容器保留这些数据；不要执行 `docker compose down -v`。
+
+### 方式三：先拉取完整 GitHub 项目再部署
+
+适合希望保留源码或后续修改的用户，服务器需另外有 Git：
+
+```bash
+git clone https://github.com/xiaoer2021/docsync.git
+cd docsync
+docker compose up -d --build --wait --wait-timeout 300
+docker compose exec api cat /app/data/initial-admin-password
+```
+
+此 Compose 使用 GitHub 构建上下文，本地文件修改不会自动进入镜像。要部署自己的代码、使用 MySQL 元数据库或进行手动部署，请看 [Linux 部署与维护](DEPLOYMENT.md)。
+
+## Linux 手动部署前后端
+
+不使用 Docker 时，从 GitHub 拉取项目后安装后端运行环境并构建前端：
+
+```bash
+git clone https://github.com/xiaoer2021/docsync.git
+cd docsync
+```
+
+完整步骤见 [Linux 手动部署](DEPLOYMENT.md#linux-手动部署前后端)，包含 Python 虚拟环境、初始化管理员、systemd 常驻服务、Node.js 构建、Nginx 静态页面和反向代理。仓库提供可直接安装的配置文件：
+
+- [后端 systemd 服务](deploy/linux/docsync.service)
+- [前端 Nginx 配置](deploy/linux/nginx.conf)
+
+## 常用操作
+
+```bash
+docker compose ps
+docker compose logs --tail 100 api
 docker compose exec api python -m app.cli check
+docker compose restart
 ```
 
-初始化时输入自己的管理员口令，没有默认口令。访问 `http://localhost:8090`，以 `admin` 登录。远程安装将 localhost 换成服务器地址。`.env` 中的 `WEB_PORT` 可调整访问端口。
-没有 Python 时，Linux/macOS 用以下命令替代第一步：
+升级前备份数据卷；保留原 Compose 项目名及卷名。默认 `main` 跟随最新代码，稳定部署可固定提交：
 
 ```bash
-docker run --rm -v "$PWD:/workspace" -w /workspace python:3.11-slim python scripts/init_config.py --mode docker
+DOCSYNC_REF=完整提交SHA docker compose up -d --build --wait --wait-timeout 300
 ```
 
-Windows PowerShell：
+首次使用：配置平台应用和权限 → 添加目标数据库 → 登记文档 → 创建任务 → 试跑核对 → 正式执行 → 配置调度。
 
-```powershell
-docker run --rm -v "${PWD}:/workspace" -w /workspace python:3.11-slim python scripts/init_config.py --mode docker
-```
+## 支持与边界
 
-生成器自动创建独立主密钥、登录密钥和 MySQL 口令。已有 `.env` 时拒绝覆盖；`setup` 可重复执行，保留已有可用管理员及业务数据。Docker 启动自动迁移数据库，首个管理员由命令主动创建。
+| 项目 | 说明 |
+|---|---|
+| 钉钉、飞书电子表格及多维表格 | 开放平台 API，需要应用授权及文档权限 |
+| WPS 个人版 | Chromium 授权后下载 xlsx，需导出权限，依赖平台页面与下载行为 |
+| Google / WPS 官方开发者 API | 尚未实现，不作为可用连接器 |
+| 目标数据库 | MySQL、SQL Server |
+| 元数据库 | 快速部署默认 SQLite，另提供 MySQL 方案 |
 
-## 手动运行前后端
+关键列转换失败会停止写入；普通异常值可留空并保留原文，执行仍可能显示成功。日期交叉表的公式错误按当前规则取 0，需核对业务口径。试跑成功不等于正式写库成功。
 
-推荐 Python 3.11、Node.js 22。SQLite 元数据库无需安装 MySQL，目标业务库仍需用户提供。
-Linux/macOS 后端：
-
-```bash
-python3 scripts/init_config.py --mode manual
-cd backend
-python3 -m venv .venv
-. .venv/bin/activate
-python -m pip install -r requirements-dev.txt
-python -m app.cli setup
-python -m app.cli check
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-Windows PowerShell 后端：
-
-```powershell
-py -3.11 scripts/init_config.py --mode manual
-cd backend
-py -3.11 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-.\.venv\Scripts\python.exe -m app.cli setup
-.\.venv\Scripts\python.exe -m app.cli check
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-另开终端，从项目根目录启动前端：
-
-```bash
-cd frontend
-npm ci
-npm run dev -- --host 127.0.0.1
-```
-
-访问 `http://127.0.0.1:5273`，前端将 `/api`、`/health` 代理到后端。后端须从 `backend/` 执行，读取根目录 `.env`；SQLite 及运行数据在 `backend/data/`。手动安装不要使用 Docker 模式数据库连接。
-Windows 完成依赖及初始化后，也可双击 `start.bat` 后台启动、`stop.bat` 停止本项目进程，日志位于根目录 `data/`。
-WPS 手动运行需 Chromium、Chrome 或 Edge。程序寻找常见路径，也可在 `.env` 设置 `DOCSYNC_BROWSER` 为可执行文件完整路径。Linux 安装 `chromium` 和 `fonts-noto-cjk`；Docker 镜像已包含。档案与缓存随 `DOCSYNC_DATA_DIR` 持久化，不依赖容器专用路径。
-生产托管使用 `npm run build`，由 nginx 等静态服务器托管 `frontend/dist`，将 `/api`、`/health` 代理到后端并配置 HTTPS。Vite 仅用于开发。内嵌调度部署只能运行一个 API 进程，不要增加 uvicorn workers 或多个副本。
-
-## 首次使用
-
-1. 添加钉钉、飞书或 WPS 应用，完成权限配置或登录。
-2. 添加目标数据库并测试连接。
-3. 登记文档链接并确认工作表清单。
-4. 创建任务，选择工作表、表头、字段映射及目标表。
-5. 先试跑核对行数、类型和计划，再正式执行并检查目标库。
-6. 最后配置调度与后置动作。
-首次安装不预置业务应用、数据源、文档和定时任务，不会自动同步业务数据。
-
-## 数据处理边界
-
-- 主键、必填和明确指定的关键列转换失败时，写入前停止。
-- 普通异常格可在业务列留空并保留原文到 `原始值_未识别`，执行日志记录异常数量。此时仍可能显示成功，需主动核对质量信息。
-- 日期交叉表读取中的公式错误格按当前规则取 0，不保证等同 Excel 重算结果；日期顺序不明确时不猜。
-- 覆盖写入和删除对账检查限行、读取上限、增量及必填缺失等条件。整表重写在原表至少 100 行时，默认不足原表 50% 则停止，可调整比例。
-- 试跑不写目标表，成功也不等于正式写库或后置动作成功。
-配置及维护见 [DEPLOYMENT.md](DEPLOYMENT.md)。
-
-## 开发与发行
-
-```bash
-cd backend
-python -m ruff check app tests scripts ../scripts
-python -m pytest -q
-cd ../frontend
-npm ci
-npm run build
-npm audit
-```
-
-`backend/app` 为后端业务，`backend/alembic` 为迁移，`backend/tests` 为测试，`frontend/src` 为前端，`scripts` 为安装及发布工具。扩展约定见 [CONTRIBUTING.md](CONTRIBUTING.md)，安全边界见 [SECURITY.md](SECURITY.md)。
+内嵌调度只运行一个 API 进程，不能直接增加 workers 或多个副本。公网入口应配置 HTTPS；安全说明见 [SECURITY.md](SECURITY.md)，第三方许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。开发说明见 [CONTRIBUTING.md](CONTRIBUTING.md)。

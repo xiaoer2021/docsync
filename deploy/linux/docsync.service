@@ -1,0 +1,17 @@
+[Unit]
+Description=Docsync API and scheduler
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=simple
+User=docsync
+Group=docsync
+WorkingDirectory=/opt/docsync/backend
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/docsync/backend/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=90
+UMask=0077
+[Install]
+WantedBy=multi-user.target

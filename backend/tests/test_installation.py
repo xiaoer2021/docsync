@@ -90,3 +90,50 @@ def test_runtime_paths_follow_data_directory(tmp_path):
     settings = Settings(_env_file=None, data_dir=tmp_path)
     assert settings.profiles_dir == tmp_path / "browser"
     assert settings.downloads_dir == tmp_path / "wps-downloads"
+
+
+def test_container_bootstrap_preserves_secrets_and_changed_admin_password(tmp_path):
+    from app.core.security import verify_password
+
+    env = {key: value for key, value in os.environ.items() if not key.startswith("DOCSYNC_")}
+    env.update({"PYTHONUTF8": "1", "DOCSYNC_DATA_DIR": str(tmp_path)})
+    script = ROOT / "backend/scripts/bootstrap_config.py"
+    first = run(str(script), env=env)
+    assert first.returncode == 0, first.stderr
+    secret_file = tmp_path / "runtime.env"
+    original_secrets = secret_file.read_bytes()
+    second = run(str(script), env=env)
+    assert second.returncode == 0
+    assert secret_file.read_bytes() == original_secrets
+    env.update(dict(line.split("=", 1) for line in original_secrets.decode().splitlines()))
+    env.update(
+        {
+            "DOCSYNC_ENV": "prod",
+            "DOCSYNC_META_DB_URL": f"sqlite+aiosqlite:///{(tmp_path / 'fresh.db').as_posix()}",
+            "DOCSYNC_SCHEDULER_ENABLED": "false",
+        }
+    )
+
+    def cli(*arguments):
+        result = run("-m", "app.cli", *arguments, cwd=ROOT / "backend", env=env)
+        assert result.returncode == 0, result.stderr + result.stdout
+        return result
+
+    result = cli("bootstrap")
+    password_file = tmp_path / "initial-admin-password"
+    initial_password = password_file.read_text().strip()
+    assert len(initial_password) >= 24
+    assert initial_password not in result.stdout + result.stderr
+    with sqlite3.connect(tmp_path / "fresh.db") as connection:
+        password_hash = connection.execute(
+            "SELECT password_hash FROM sys_user WHERE username='admin'"
+        ).fetchone()[0]
+    assert verify_password(initial_password, password_hash)
+    cli("reset-password", "--username", "admin", "--password", "ChangedForThisTest123!")
+    cli("bootstrap")
+    with sqlite3.connect(tmp_path / "fresh.db") as connection:
+        users = connection.execute("SELECT username,password_hash FROM sys_user").fetchall()
+    assert len(users) == 1
+    assert verify_password("ChangedForThisTest123!", users[0][1])
+    assert password_file.read_text().strip() == initial_password
+    assert secret_file.read_bytes() == original_secrets

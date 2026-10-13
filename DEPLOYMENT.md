@@ -1,49 +1,190 @@
-# 安装、初始化与维护
+# Linux 部署与维护
 
-首次安装见 README，本说明适用于任意自托管实例。
+从服务器上没有项目开始，选择下面一种部署方式。示例以 Debian 12、Python 3.11、Node.js 22 和 x86_64 为基准。已有实例先按后文备份，再升级，不要重新初始化密钥。
 
-## 配置
+## 单文件 Docker 部署
 
-| 配置 | 用途 |
-|---|---|
-| `DOCSYNC_ENV` | 安装默认 prod，要求主密钥及显式设置的至少 32 字符 JWT 密钥 |
-| `DOCSYNC_MASTER_KEY` | Fernet 凭证加密主密钥，安装后保持不变 |
-| `DOCSYNC_JWT_SECRET` | 登录签名密钥，安装后保持稳定 |
-| `DOCSYNC_META_DB_URL` | 手动默认 SQLite；Compose 从 `MYSQL_PASSWORD` 自动拼接 MySQL 地址 |
-| `DOCSYNC_DATA_DIR` | 日志、临时文件、默认浏览器档案及下载缓存根目录 |
-| `DOCSYNC_BROWSER` | 可选 Chromium/Chrome/Edge 可执行文件完整路径 |
-| `DOCSYNC_BROWSER_PROFILES_DIR` | 可选档案位置，Compose 保留 `/data/browser` 挂载兼容现有实例 |
-| `DOCSYNC_WPS_DOWNLOAD_DIR` | 可选下载位置；旧 `WPS_DOWNLOAD_DIR` 仍兼容 |
-| `DOCSYNC_CORS_ORIGINS` | 默认空数组；跨域时用 JSON 数组，如 `["https://sync.example.com"]` |
-| `MYSQL_PASSWORD` / `MYSQL_ROOT_PASSWORD` | Docker 空库创建口令，更改 env 不会自动改已有数据库用户口令 |
-| `WEB_PORT` | 对外端口，默认 8090，API 内部固定 8000 |
-| SQL Server 驱动 | 使用 requirements 中的 pymssql，构建无需微软 ODBC 驱动 |
-| `PIP_INDEX_URL` | 可选 Docker 构建包源 |
-
-配置生成器创建独立密钥，`python -m app.cli setup` 迁移表结构并交互创建首个管理员。重复初始化保留现有配置、账号和数据。修改已有口令用 `reset-password --username <账号>`，省略 `--password` 即交互输入。
-生产只运行一个 API 进程，内嵌调度器在多个 workers/副本中可能重复派发任务。不要将某个实例的 `.env` 作为默认配置分发。
-
-## 检查
+先安装 Docker Engine 和 Compose v2，参考 [Docker 官方安装说明](https://docs.docker.com/engine/install/)。然后：
 
 ```bash
-docker compose ps
-docker compose exec api python -m app.cli check
-docker compose logs --tail 100 api
+mkdir -p ~/docsync
+cd ~/docsync
+curl -fsSL https://raw.githubusercontent.com/xiaoer2021/docsync/main/docker-compose.yml -o docker-compose.yml
+docker compose up -d --build --wait --wait-timeout 300
+docker compose exec api cat /app/data/initial-admin-password
 ```
 
-访问 `/health` 检查 `database.ok`、`scheduler.running` 和队列。HTTP 成功不单独证明调度正常，启用自动任务时应检查 `scheduler.running=true`。业务成功需核对执行结果和目标库。
+不需要 Git、Python、Node.js、MySQL 或 `.env`。Docker 自行拉取仓库并构建镜像，首次启动自动生成密钥、迁移元数据库、创建 `admin` 账号。查看随机密码后访问 `http://服务器IP:8090`。宿主机只开放前端 8090，API 8000 不对外发布。
 
-## 备份及升级
+初始化仅在首次安装生效；已有账号或数据不会重置。数据、密钥、下载缓存与浏览器档案均在命名卷。改密码后，初始密码文件可移除，它不用于重置口令。
 
-升级前暂停自动任务或在空闲窗口停 API，备份 `.env`、元数据库及 `data/`。Docker MySQL 在 `mysql-data` 卷中，停库后可物理快照；运行中的数据库应使用一致性逻辑导出。手动 SQLite 停后端再复制数据库及必要 WAL 文件。
-完成备份后执行：
+## 拉取源码后使用 Docker
 
 ```bash
-docker compose stop api web
-docker compose up -d --build --wait
+git clone https://github.com/xiaoer2021/docsync.git
+cd docsync
+docker compose up -d --build --wait --wait-timeout 300
+docker compose exec api cat /app/data/initial-admin-password
+```
+
+默认 Compose 从 GitHub 构建。若要用当前目录的代码构建，在项目根目录创建覆盖文件 `compose.local.yml`：
+
+```yaml
+services:
+  api:
+    build:
+      context: ./backend
+  web:
+    build:
+      context: ./frontend
+```
+
+然后执行：
+
+```bash
+docker compose -f docker-compose.yml -f compose.local.yml up -d --build --wait --wait-timeout 300
+```
+
+## Linux 手动部署前后端
+
+手动部署使用 Python 运行后端、Node.js 构建前端、Nginx 提供页面，systemd 保持后端运行。前端构建完成后不需要常驻 Node.js 服务。
+
+### 1. 安装环境并从 GitHub 获取项目
+
+以下命令适用于 Debian 12 的全新安装。其他发行版使用相应包管理器，Python 应为 3.10+，推荐 3.11：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git curl ca-certificates python3 python3-venv nginx
+curl -fsSL https://deb.nodesource.com/setup_22.x -o /tmp/docsync-node-setup.sh
+sudo bash /tmp/docsync-node-setup.sh
+sudo apt-get install -y nodejs
+id docsync >/dev/null 2>&1 || sudo useradd --system --create-home --home-dir /var/lib/docsync --shell /usr/sbin/nologin docsync
+sudo git clone https://github.com/xiaoer2021/docsync.git /opt/docsync
+sudo chown -R docsync:docsync /opt/docsync
+python3 --version
+node --version
+```
+
+Node.js 安装脚本来自 NodeSource。已有 Node.js 22 时可以跳过这部分。需要 WPS 时另安装浏览器及字体：
+
+```bash
+sudo apt-get install -y chromium fonts-noto-cjk
+```
+
+Ubuntu 的 Chromium 安装方式可能使用 Snap，需按发行版确认浏览器能被服务账号以无头模式启动；也可设置 `DOCSYNC_BROWSER` 为已有 Chrome/Chromium 完整路径。
+
+### 2. 安装并初始化后端
+
+```bash
+sudo -u docsync python3 -m venv /opt/docsync/backend/.venv
+sudo -u docsync /opt/docsync/backend/.venv/bin/python -m pip install -r /opt/docsync/backend/requirements.txt
+sudo -u docsync /opt/docsync/backend/.venv/bin/python /opt/docsync/scripts/init_config.py --mode manual
+cd /opt/docsync/backend
+sudo -u docsync .venv/bin/python -m app.cli setup
+sudo -u docsync .venv/bin/python -m app.cli check
+sudo chmod 600 /opt/docsync/.env
+sudo chmod 700 /opt/docsync/backend/data
+```
+
+`setup` 交互输入管理员口令。配置生成器拒绝覆盖已有 `.env`。手动模式默认元数据库为 `/opt/docsync/backend/data/docsync.db`，应用凭证、日志和浏览器档案也保存在 `backend/data/`。这与 Docker 的命名卷是不同存储位置。
+
+### 3. 将后端交给 systemd
+
+```bash
+sudo cp /opt/docsync/deploy/linux/docsync.service /etc/systemd/system/docsync.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now docsync
+sudo systemctl status docsync --no-pager
+curl --fail http://127.0.0.1:8000/health
+```
+
+服务以 `docsync` 账号运行，工作目录固定为 `/opt/docsync/backend`，自动读取父目录 `.env`，仅监听本机 8000。只运行一个 worker，避免重复调度。更换项目路径时同步修改服务文件。
+
+### 4. 构建前端并交给 Nginx
+
+```bash
+cd /opt/docsync/frontend
+sudo -u docsync -H npm ci
+sudo -u docsync -H npm run build
+sudo install -d -m 755 /var/www/docsync
+sudo cp -a /opt/docsync/frontend/dist/. /var/www/docsync/
+sudo chown -R root:root /var/www/docsync
+sudo chmod -R u=rwX,go=rX /var/www/docsync
+sudo cp /opt/docsync/deploy/linux/nginx.conf /etc/nginx/sites-available/docsync
+sudo ln -s /etc/nginx/sites-available/docsync /etc/nginx/sites-enabled/docsync
+sudo nginx -t
+sudo systemctl enable --now nginx
+sudo systemctl reload nginx
+curl --fail http://127.0.0.1:8090/health
+```
+
+打开 `http://服务器IP:8090`。Nginx 托管静态页面，并代理 `/api/` 与 `/health` 到后端，保留实时日志所需的无缓冲设置。开放对应防火墙/安全组端口；正式公网部署通过域名和 TLS 配置 HTTPS。Vite 的 `npm run dev` 仅用于开发，不作为服务器常驻前端。
+
+## MySQL 元数据库方案
+
+需要独立元数据库或使用当前本地源码构建时，可使用另外的 Compose：
+
+```bash
+git clone https://github.com/xiaoer2021/docsync.git
+cd docsync
+docker run --rm -v "$PWD:/workspace" -w /workspace python:3.11-slim python scripts/init_config.py --mode docker
+docker compose -f docker-compose.mysql.yml up -d --build --wait --wait-timeout 300
+docker compose -f docker-compose.mysql.yml exec api python -m app.cli setup
+docker compose -f docker-compose.mysql.yml exec api python -m app.cli check
+```
+
+这里的 `.env`、MySQL 卷和 `./data` 与单文件 SQLite 方案不同。不要直接切换 Compose 期望自动迁移数据。SQLite 转 MySQL 的维护脚本为 `backend/scripts/migrate_sqlite_to_mysql.py`，目标须先迁移且业务表为空，并使用一致性源快照。
+
+## 备份与升级
+
+单文件 Docker：备份 `docsync_docsync-data` 卷，必须包含 `runtime.env`、SQLite 数据库、浏览器档案。为获得一致性快照，停止 API 后由宿主机备份卷，或使用 SQLite 在线备份接口。不要在写入中直接拷贝数据库文件。
+
+完成备份后，默认 `main` 方案更新镜像：
+
+```bash
+docker compose up -d --build --wait --wait-timeout 300
 docker compose exec api python -m app.cli check
 ```
 
-保留原 `.env`，不要重新生成密钥。容器启动自动升级元数据库；回退须同时恢复旧代码和迁移前数据库备份。
-禁止 `docker compose down -v`，它会删除 MySQL 数据卷。登录档案及 `.broken-*` 副本可能有可恢复登录态，不能当普通缓存清理。
-SQLite 转 MySQL 维护脚本为 `backend/scripts/migrate_sqlite_to_mysql.py`。仅对一致性快照执行，目标 MySQL 先迁移且业务表为空；脚本按表核对数量。它不是首次初始化必要步骤。
+若使用固定 `DOCSYNC_REF`，更新时显式指定新的提交 SHA。重建不改变已保存密钥或管理员口令；只重启容器不会获取新代码。禁止 `docker compose down -v`，它会删除数据卷。
+
+手动方案：停服务后备份 `/opt/docsync/.env` 和 `backend/data/`，再更新源码、依赖和前端：
+
+```bash
+sudo systemctl stop docsync
+cd /opt/docsync
+sudo -u docsync git pull --ff-only
+sudo -u docsync backend/.venv/bin/python -m pip install -r backend/requirements.txt
+cd /opt/docsync/backend
+sudo -u docsync .venv/bin/python -m app.cli initdb
+cd /opt/docsync/frontend
+sudo -u docsync -H npm ci
+sudo -u docsync -H npm run build
+sudo cp -a dist/. /var/www/docsync/
+sudo chown -R root:root /var/www/docsync
+sudo chmod -R u=rwX,go=rX /var/www/docsync
+sudo systemctl start docsync
+curl --fail http://127.0.0.1:8090/health
+```
+
+不要重新生成主密钥。回退时配套恢复旧代码及升级前元数据库。
+
+## 开发附录
+
+Linux/macOS 开发可在 `backend/` 建虚拟环境、执行 `setup` 后运行 `uvicorn app.main:app --reload`，在 `frontend/` 运行 `npm ci` 和 `npm run dev`。开发前端默认 5273，代理后端 8000。
+
+Windows 开发从拉取项目开始：
+
+```powershell
+git clone https://github.com/xiaoer2021/docsync.git
+cd docsync
+py -3.11 scripts/init_config.py --mode manual
+cd backend
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m app.cli setup
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8000
+```
+
+另开终端进入 `docsync/frontend`，运行 `npm ci`、`npm run dev`。`start.bat` / `stop.bat` 用于已完成初始化的 Windows 本地开发。
