@@ -520,12 +520,12 @@ onMounted(async () => {
                     <el-checkbox
                       v-if="s.task_id"
                       :model-value="s.auto_column_check"
-                      title="盯着**这一张子表**的列名有没有变（多了列、少了列、改了名），发现就提醒你"
+                      title="检查当前子表的字段新增、删除或重命名，并提示变化"
                       @change="(v: boolean) => toggleColumnCheck(row, s, v)"
                     >
                       新增列
                     </el-checkbox>
-                    <span v-else class="muted">没配任务，不用管</span>
+                    <span v-else class="muted">未配置任务</span>
                   </template>
                 </el-table-column>
                 <el-table-column v-if="auth.isAdmin" label="操作" width="150">
@@ -569,7 +569,7 @@ onMounted(async () => {
             <el-checkbox
               :model-value="row.watch_enabled"
               :disabled="!auth.isAdmin"
-              title="盯着这个表单里有没有**新加的子表**（比如下个月新出现的「11月」），发现就提醒你"
+              title="检查当前表单是否新增子表，并提示变化"
               @change="() => toggleWatch(row)"
             >
               新增子表
@@ -646,7 +646,7 @@ onMounted(async () => {
           <div class="search-row">
             <el-input
               v-model="searchKeyword"
-              placeholder="输入表单名里的关键词，例如 Coupang、营销单"
+              placeholder="输入表单名称关键词，例如库存台账"
               clearable
               @keyup.enter="doSearch(false)"
             />
@@ -702,7 +702,7 @@ onMounted(async () => {
           />
           <div class="field-hint block">
             <template v-if="addPlatform === 'wps'">
-              整段粘也行 —— 后端会把里面的网址抠出来。保存时会**当场试读**：
+              支持粘贴完整分享文本，系统会提取链接。保存时将验证是否可读取：
               读得到才登记（所以这个应用得先「扫码 / 手机号登录」过）。
             </template>
             <template v-else>
@@ -798,9 +798,9 @@ onMounted(async () => {
 
           <el-form label-width="90px" style="margin-top: 12px">
             <el-form-item label="表单别名" required>
-              <el-input v-model="addForm.name" placeholder="自己认得出就行，例如「Coupang平台货品」" />
+              <el-input v-model="addForm.name" placeholder="输入便于识别的名称，例如商品信息表" />
               <div class="field-hint">
-                从你粘的那段里**自己认出来的**（金山抬头里那个名字），认错了直接改。
+                名称从分享文本中自动识别，可按需修改。
               </div>
             </el-form-item>
           </el-form>

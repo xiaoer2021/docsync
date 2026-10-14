@@ -1146,7 +1146,7 @@ onMounted(bootstrap);
           <div class="grid-title">
             落库会存成这样
             <span class="muted">
-              （日期已转成日期、金额已去千分位；**只列勾选了要用的列**，
+              （日期已转成日期、金额已去千分位；仅展示已选择的列，
               共 {{ preview.rows.length }} 行，
               <b v-if="willWriteCount !== preview.rows.length">
                 其中 {{ preview.rows.length - willWriteCount }} 行不写
@@ -1290,7 +1290,7 @@ onMounted(bootstrap);
             </div>
           </el-form-item>
           <el-form-item label="目标表名" required>
-            <el-input v-model="target.table_name" placeholder="例如 经营分析_Coupang_平台货品" />
+            <el-input v-model="target.table_name" placeholder="例如 product_catalog" />
             <div class="field-hint">表不存在会自动建；已存在只会补缺失的列，不会删列改类型。</div>
           </el-form-item>
           <el-form-item label="写入策略" required>
@@ -1451,7 +1451,7 @@ onMounted(bootstrap);
         </div>
         <div class="card-body">
           <div v-if="!postActions.length" class="muted-only">
-            还没配。同步完自动刷观远数据集、或者往钉钉群发条消息，都在这里配 ——
+            尚未配置。可在同步完成后自动通知上游更新数据，
             也可以先跳过，以后再来加。
           </div>
           <div v-else>
@@ -1473,7 +1473,7 @@ onMounted(bootstrap);
             还没有可用的后置动作，先去「后置动作」页建一个（比如钉钉机器人）。
           </div>
           <div v-else class="field-hint">
-            这一块跟上面的定时**互不影响**：定时决定「什么时候跑」，
+            这一块跟上面的定时互不影响：定时决定「什么时候跑」，
             后置动作决定「跑完之后通知谁」。动作失败不会把这次同步标成失败。
           </div>
         </div>

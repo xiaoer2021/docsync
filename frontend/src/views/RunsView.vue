@@ -27,7 +27,7 @@ onMounted(async () => {
       <div>
         <h1 class="page-title">执行记录</h1>
         <div class="page-sub">
-          每一次同步的结果：读了多少、写了多少、哪些行坏了、按规则改了几处。
+          查看每次同步的读取与写入数量、异常数据和规则处理结果。
           点一行展开看日志正文。
         </div>
       </div>

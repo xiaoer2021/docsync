@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { toastErr, toastOk } from '@/api/client';
-import { cancelWpsLogin, clickWpsLogin, createApp, deleteApp, keyWpsLogin, listApps, pollWpsLogin, scopeGuide, searchContacts, startWpsLogin, testApp, typeWpsLogin, updateApp, resolveContact, type AppTestResult, type Contact, type DingApp, type ScopeGuide, type AppRecipe, type WpsLoginState, createDoc, } from '@/api/dingtalk';
+import { cancelWpsLogin, clickWpsLogin, createApp, deleteApp, keyWpsLogin, listApps, pollWpsLogin, scopeGuide, searchContacts, startWpsLogin, testApp, typeWpsLogin, updateApp, resolveContact, type AppTestResult, type Contact, type DingApp, type ScopeGuide, type AppRecipe, type WpsLoginState, } from '@/api/dingtalk';
 import { useAuthStore } from '@/stores/auth';
 import { PLATFORMS, isPending, platformOf } from '@/branding';
 import PlatformIcon from '@/components/PlatformIcon.vue';
@@ -37,7 +37,7 @@ function applyLogin(state: WpsLoginState) {
         stopLoginPoll();
         loginOk.value = true;
         loginVisible.value = false;
-        toastOk('WPS 登录成功，登录态已保存');
+        toastOk('WPS 账号授权成功');
         void load();
         return;
     }
@@ -52,7 +52,9 @@ function applyLogin(state: WpsLoginState) {
             if (loginAppId.value === null)
                 return;
             try {
-                applyLogin(await pollWpsLogin(loginAppId.value));
+                const appId = loginAppId.value;
+                const state = await pollWpsLogin(appId);
+                if (loginAppId.value === appId && (loginVisible.value || wizardVisible.value)) applyLogin(state);
             }
             catch {
                 stopLoginPoll();
@@ -65,7 +67,9 @@ async function loginCall(fn: (id: number) => Promise<WpsLoginState>, fail: strin
         return;
     loginLoading.value = true;
     try {
-        applyLogin(await fn(loginAppId.value));
+        const appId = loginAppId.value;
+        const state = await fn(appId);
+        if (loginAppId.value === appId && (loginVisible.value || wizardVisible.value)) applyLogin(state);
     }
     catch (err) {
         toastErr(err, fail);
@@ -143,6 +147,7 @@ async function ensureApp() {
     }
 }
 async function startWpsSignIn() {
+    if (saving.value || loginLoading.value) return;
     if (!form.name.trim()) {
         ElMessage.warning('先填应用名称');
         return;
@@ -150,6 +155,7 @@ async function startWpsSignIn() {
     await ensureApp();
     if (currentAppId.value === null)
         return;
+    if (!wizardVisible.value || platform.value !== 'wps') return;
     loginAppId.value = currentAppId.value;
     loginOk.value = false;
     await refreshLogin();
@@ -197,6 +203,20 @@ const isEdit = computed(() => editingId.value !== null);
 const wizardTitle = computed(() => (isEdit.value ? '编辑数据应用' : '接入数据应用'));
 const platform = ref('dingtalk');
 const currentPlatform = computed(() => platformOf(platform.value));
+let authorizationTimer: number | undefined;
+watch([() => form.name.trim(), platform, wizardVisible], ([name, selected, visible]) => {
+    if (authorizationTimer) window.clearTimeout(authorizationTimer);
+    if (!visible || selected !== 'wps') {
+        void onLoginClosed();
+        return;
+    }
+    if (!name || loginOk.value || loginState.value || loginLoading.value || saving.value) return;
+    authorizationTimer = window.setTimeout(() => void startWpsSignIn(), 800);
+});
+onBeforeUnmount(() => {
+    if (authorizationTimer) window.clearTimeout(authorizationTimer);
+    void onLoginClosed();
+});
 function openCreate() {
     editingId.value = null;
     platform.value = 'dingtalk';
@@ -300,9 +320,7 @@ async function submitBasics() {
             form.app_secret = '';
         }
         toastOk('基本信息已保存');
-        if (currentAppId.value && platform.value === 'wps') {
-            await addDocNow(currentAppId.value);
-        }
+
         await load();
         loadRecipe(apps.value.find((a) => a.id === currentAppId.value));
         step.value = currentPlatform.value.needsOperator ? 1 : 2;
@@ -315,59 +333,6 @@ async function submitBasics() {
     }
 }
 const savingRecipe = ref(false);
-function firstUrl(text: string): string {
-    const m = /https?:\/\/\S+/.exec(text || '');
-    return m ? m[0].replace(/[，。,.\s]+$/, '') : '';
-}
-function suggestDocName(text: string): string {
-    const lines = String(text || '')
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean);
-    const head = lines.find((line) => !/^https?:\/\//i.test(line));
-    if (!head)
-        return '';
-    return head
-        .replace(/^【[^】]*】\s*/, '')
-        .replace(/\s*\d{4}[-/年][\d\-_/.月日:：]*.*$/, '')
-        .trim();
-}
-const docRef = ref('');
-const docName = ref('');
-const addingDoc = ref(false);
-const addedDocs = ref<{
-    id: number;
-    name: string;
-}[]>([]);
-function onDocRefChange() {
-    if (!docName.value.trim())
-        docName.value = suggestDocName(docRef.value);
-}
-async function addDocNow(appId: number): Promise<boolean> {
-    const ref = docRef.value.trim();
-    if (!ref)
-        return false;
-    addingDoc.value = true;
-    try {
-        const doc = await createDoc({
-            ref,
-            app_id: appId,
-            name: docName.value.trim() || undefined,
-        } as never);
-        addedDocs.value.push({ id: doc.id, name: doc.name });
-        docRef.value = '';
-        docName.value = '';
-        toastOk('链接测通了，已登记 —— 表单管理里能看到');
-        return true;
-    }
-    catch (err) {
-        toastErr(err, '这个链接读不到');
-        return false;
-    }
-    finally {
-        addingDoc.value = false;
-    }
-}
 const recipe = reactive<{
     elements: {
         name: string;
@@ -596,7 +561,7 @@ onMounted(async () => {
               验证
             </el-button>
             <el-button v-if="row.platform === 'wps'" link size="small" @click="openLogin(row)">
-              扫码登录
+              授权账号
             </el-button>
             <el-button link size="small" @click="openEdit(row)">编辑</el-button>
             <el-button link type="danger" size="small" @click="remove(row)">删除</el-button>
@@ -619,7 +584,7 @@ onMounted(async () => {
         ref="loginImg"
         class="login-shot"
         :src="`data:image/png;base64,${loginState.image}`"
-        alt="WPS 登录页"
+        alt="WPS 账号授权二维码"
         tabindex="0"
         @click="onMirrorClick"
         @keydown="onMirrorKey"
@@ -679,7 +644,7 @@ onMounted(async () => {
             </div>
             <div class="field-hint">
               <template v-if="isEdit">
-                平台建好之后**不能改** —— 换了平台等于换了另一套凭证。
+                应用创建后不可修改平台类型；更换平台需要重新配置凭据。
                 要接另一个平台，新建一个应用。
               </template>
               <template v-else>
@@ -688,16 +653,7 @@ onMounted(async () => {
             </div>
           </el-form-item>
 
-          <el-form-item v-if="platform === 'wps'" label="登录要求">
-            <el-tag type="warning" effect="light">必须登录</el-tag>
-            <div class="field-hint">
-              建好之后点「扫码登录」：可以**扫码**，也可以切**手机号（短信验证码）**或
-              **专属账号**登录。登录态存在服务器上这个应用自己的档案目录里，
-              之后读文档一直用它。
-            </div>
-          </el-form-item>
-
-          <el-form-item v-if="platform === 'wps'" label="应用名称" required>
+<el-form-item v-if="platform === 'wps'" label="应用名称" required>
             <el-input
               v-model="form.name"
               placeholder="自己认得出就行，例如「WPS 取数应用」"
@@ -705,68 +661,35 @@ onMounted(async () => {
             />
           </el-form-item>
 
-          <el-form-item v-if="platform === 'wps'" label="登录">
+          <el-form-item v-if="platform === 'wps'" label="授权账号">
             <div class="wps-signin">
               <img
                 v-if="loginState?.image"
                 ref="loginImg"
                 class="login-shot"
                 :src="`data:image/png;base64,${loginState.image}`"
-                alt="WPS 登录页"
+                alt="WPS 账号授权二维码"
                 tabindex="0"
                 @click="onMirrorClick"
                 @keydown="onMirrorKey"
               />
-              <template v-else>
-                <el-button :loading="loginLoading || saving" @click="startWpsSignIn">
-                  开始登录
-                </el-button>
-                <div class="field-hint">
-                  点它会先把上面的应用名称创建成一个应用（WPS 一律要登录，
-                  登录态存在这个应用自己的档案目录里），然后在下面这张
-                  **金山登录页**上**扫码**登录（只留二维码，别的登录方式已隐藏）。
-                </div>
-              </template>
+              <div v-else-if="!loginOk" class="field-hint">
+                {{ loginLoading || saving ? '正在获取授权二维码…' : form.name.trim() ? '授权二维码暂未就绪，请重试' : '填写应用名称后将自动显示授权二维码' }}
+              </div>
+              <el-button v-if="form.name.trim() && !loginLoading && !saving && !loginOk" size="small" @click="startWpsSignIn">刷新二维码</el-button>
 
               <div v-if="loginOk" class="wps-signin-done">
-                <el-tag type="success" effect="light">✅ 已获取登录</el-tag>
+                <el-tag type="success" effect="light">已授权</el-tag>
                 <el-button size="small" :loading="loginLoading" @click="checkValidity">
                   检查有效期
                 </el-button>
               </div>
               <div v-else-if="loginState?.image" class="field-hint">
-                点哪儿就是点哪儿；点一下输入框后直接打字。登完这里会出现「已获取登录」。
+                使用 WPS 扫描二维码完成账号授权。
               </div>
             </div>
           </el-form-item>
 
-          <el-form-item v-if="platform === 'wps'" label="文档链接">
-            <el-input
-              v-model="docRef"
-              type="textarea"
-              :rows="2"
-              style="width: 430px"
-              placeholder="可选：从金山文档「复制共享链接」整段粘进来（保存时当场试读并登记）"
-              @change="onDocRefChange"
-              @blur="onDocRefChange"
-            />
-            <div v-if="firstUrl(docRef)" class="field-hint">
-              识别到的链接：<span class="mono">{{ firstUrl(docRef) }}</span>
-            </div>
-          </el-form-item>
-
-          <el-form-item v-if="platform === 'wps' && docRef.trim()" label="文档名">
-            <el-input v-model="docName" style="width: 300px" placeholder="自动从链接里认，可改" />
-            <div class="field-hint">它只是「表单管理」里显示的名字，不影响读哪份文档。</div>
-          </el-form-item>
-
-          <el-form-item v-if="platform === 'wps' && addedDocs.length" label="本次已添加">
-            <div class="added-docs">
-              <el-tag v-for="d in addedDocs" :key="d.id" size="small" effect="light">
-                {{ d.name }}
-              </el-tag>
-            </div>
-          </el-form-item>
         </el-form>
 
         <el-alert
@@ -806,17 +729,7 @@ onMounted(async () => {
           </el-form-item>
         </el-form>
 
-        <el-alert
-          v-if="currentPlatform.needsCredentials === false"
-          type="success"
-          :closable="false"
-          show-icon
-          style="margin-bottom: 14px"
-        >
-          <template #title>这个平台不需要凭证</template>
-          拿无头浏览器打开网页、把表格复制出来，所以不用 AppKey/AppSecret。
-          建好之后到「表单管理」粘一个网页地址就能开始读 —— 公开的分享链接连登录都不用。
-        </el-alert>
+
 
         <div v-if="platform === 'dingtalk' && guide" class="scope-box">
           <div class="scope-head">
@@ -913,7 +826,7 @@ onMounted(async () => {
               </span>
             </template>
             <div class="recipe-hint">
-              下面是「页面上每个部件怎么找」。**平时不用管**；哪天页面改版、
+              下面是「页面上每个部件怎么找」。通常无需修改；哪天页面改版、
               读不到数据了，来这儿按 F12 抄一遍新的填上，保存后点验证即可 ——
               不用改代码、不用发版。
             </div>

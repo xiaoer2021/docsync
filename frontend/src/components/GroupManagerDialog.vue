@@ -91,7 +91,7 @@ defineExpose({ reload: load });
 <template>
   <el-dialog v-model="visible" title="业务分组" width="620px" append-to-body @open="load">
     <div class="sub">
-      给表单和任务归个类（例如 Coupang、京东、独立站）。分组是可选的，不影响同步。
+      按业务用途对表单和任务分组，例如销售、库存、项目管理。分组为可选配置，不影响同步。
     </div>
 
     <div v-if="auth.isAdmin" class="add-row">

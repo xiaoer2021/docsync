@@ -78,7 +78,7 @@ defineExpose({ reload: load });
           <el-input
             v-model="newName"
             size="small"
-            placeholder="新分组名称，例如 Coupang"
+            placeholder="新分组名称，例如库存管理"
             autofocus
             @keyup.enter="doCreate"
             @keyup.esc="cancelAdd"

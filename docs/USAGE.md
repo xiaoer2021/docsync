@@ -4,11 +4,11 @@
 
 ## 1. 应用中心：准备读取权限
 
-在「应用中心」点击「接入应用」。钉钉与飞书填写平台应用凭据，并按向导申请权限、设置操作人和验证；文档本身也必须授权给应用或操作人。WPS 个人文档通过账号授权读取。一个应用可以供多份表单复用。
+在「应用中心」点击「接入应用」。钉钉与飞书填写平台应用凭据，并按向导申请权限、设置操作人和验证；文档本身也必须授权给应用或操作人。WPS 个人文档填写应用名称后自动显示账号授权二维码，扫码完成授权后再到「表单管理」登记文档。一个应用可以供多份表单复用。
 
 Google Sheets 与 WPS 开发者 API 尚未实现；界面存在平台入口不代表对应连接器可用。
 
-![应用中心](images/apps.png)
+[![应用中心](images/apps.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/apps.png)
 
 ## 2. 表单管理：添加在线表
 
@@ -16,17 +16,17 @@ Google Sheets 与 WPS 开发者 API 尚未实现；界面存在平台入口不�
 
 粘贴文档链接或 ID，点击「解析」，核对识别出的类型和子表后再「登记」。解析失败时先检查应用权限、操作人和文档授权。
 
-![登记在线表格](images/add-doc.png)
+[![登记在线表格](images/add-doc.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/add-doc.png)
 
 添加后，在表单列表中查看最近读取时间、子表数量和待配置数量；可以重新读取、编辑任务、管理表单或按分组筛选。
 
-![表单管理](images/docs.png)
+[![表单管理](images/docs.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/docs.png)
 
 ## 3. 选择子表并建立任务
 
 进入表单详情，查看子表清单。「重新读取」用于更新子表信息；子表变化检查用于发现新增或变更。未配置的子表点击「建任务」，已配置的子表点击「看任务」。也可以在表单列表展开子表后操作。
 
-![子表清单](images/doc-sheets.png)
+[![子表清单](images/doc-sheets.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/doc-sheets.png)
 
 ## 4. 读数据：确认结构与范围
 
@@ -46,13 +46,13 @@ Google Sheets 与 WPS 开发者 API 尚未实现；界面存在平台入口不�
 
 样本预览用于配置判断，不能替代全量试跑。
 
-![读取范围与数据预览](images/read-data.png)
+[![读取范围与数据预览](images/read-data.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/read-data.png)
 
 ### 配置跳过或替换规则
 
 在「数据规则」点击「＋ 加一条」，指定匹配列、包含的内容，以及「跳过这一行」或「替换成」。列不选时匹配任意列。示例将包含「合计」的行跳过，避免汇总数和明细重复入库；实际规则应根据自己的表格设置。
 
-![数据规则](images/read-rules.png)
+[![数据规则](images/read-rules.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/read-rules.png)
 
 ## 5. 字段映射：确定入库字段
 
@@ -60,7 +60,7 @@ Google Sheets 与 WPS 开发者 API 尚未实现；界面存在平台入口不�
 
 日期按日期解析，金额可去掉千分位或货币符号，数量可去除单位。不要仅凭自动推断就正式同步，先核对真实样本。
 
-![字段映射](images/field-mapping.png)
+[![字段映射](images/field-mapping.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/field-mapping.png)
 
 ## 6. 写入目标：选择库、表和策略
 
@@ -73,7 +73,7 @@ Google Sheets 与 WPS 开发者 API 尚未实现；界面存在平台入口不�
 
 关键数据列异常可阻止写入；「源里没有的行」可以保持、删除或标记删除，应按业务需要选择。界面截图中的目标表名仅是示例。
 
-![写入目标](images/write-target.png)
+[![写入目标](images/write-target.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/write-target.png)
 
 ## 7. 定时与后置动作
 
@@ -81,17 +81,17 @@ Google Sheets 与 WPS 开发者 API 尚未实现；界面存在平台入口不�
 
 在「后置动作」集中配置 Webhook、接口请求或钉钉机器人通知。动作可供多个任务复用，点击「记录」检查动作是否执行成功；「试发」会实际发送，请使用自己的测试地址。
 
-![后置动作](images/actions.png)
+[![后置动作](images/actions.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/actions.png)
 
 任务向导中点击「从已有里选」，选择动作与触发条件：成功、部分成功、失败、没完全成功或每次都做。成功时不会包含部分成功；需要异常提醒时，应明确选择对应条件。
 
-![定时与通知配置](images/schedule-actions.png)
+[![定时与通知配置](images/schedule-actions.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/schedule-actions.png)
 
 ## 8. 先测试，再正式同步
 
 保存配置后，在「测试运行」先点击「测试运行（不写库）」，检查全量读取、字段质量和预计写入结果，确认后再「正式同步」。配置发生变化后应重新测试。
 
-![测试运行入口](images/test-run.png)
+[![测试运行入口](images/test-run.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/test-run.png)
 
 ## 9. 执行记录与日志
 
@@ -99,4 +99,4 @@ Google Sheets 与 WPS 开发者 API 尚未实现；界面存在平台入口不�
 
 同步本身成功和后置动作成功需分别核对。普通异常单元格可能保留原始值而不导致整次失败；关键日期、金额和标识列应显式设置校验。日期矩阵公式错误目前可能按零处理，使用前需核对源表。
 
-![执行日志详情](images/run-log.png)
+[![执行日志详情](images/run-log.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/run-log.png)

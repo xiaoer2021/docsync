@@ -37,47 +37,47 @@ docsync 是一个可自托管的在线表格同步工具：团队继续在钉钉
 
 集中查看任务规模、近期执行统计和下一次自动运行时间。
 
-![运行概览](docs/images/overview.png)
+[![运行概览](docs/images/overview.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/overview.png)
 
 ### 任务调度
 
 查看源表、目标表、定时规则、写入策略与上次执行结果。
 
-![任务调度](docs/images/tasks.png)
+[![任务调度](docs/images/tasks.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/tasks.png)
 
 ### 执行记录
 
 按任务查看同步历史，区分读取、写入、未变更与失败行数。
 
-![执行记录](docs/images/runs.png)
+[![执行记录](docs/images/runs.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/runs.png)
 
 ### 数据库连接
 
 统一管理 MySQL / SQL Server 目标连接，配置前可测试连接。
 
-![数据库连接](docs/images/datasources.png)
+[![数据库连接](docs/images/datasources.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/datasources.png)
 
 ### 应用中心与表单管理
 
 接入平台应用、登记在线表格并查看子表，从子表开始配置同步。完整操作见 [图文使用指南](docs/USAGE.md)。
 
-![应用中心](docs/images/apps.png)
+[![应用中心](docs/images/apps.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/apps.png)
 
-![表单管理](docs/images/docs.png)
+[![表单管理](docs/images/docs.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/docs.png)
 
 ### 读取预览与配置
 
 核对表头、数据起始行、列范围和样本，配置清洗规则、选列、字段映射、写入目标及定时通知。
 
-![读取数据与样本预览](docs/images/read-data.png)
+[![读取数据与样本预览](docs/images/read-data.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/read-data.png)
 
 ### 日志详情与后置动作
 
 打开单次执行查看日志和数据质量，配置同步后的接口请求与通知。
 
-![执行日志详情](docs/images/run-log.png)
+[![执行日志详情](docs/images/run-log.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/run-log.png)
 
-![后置动作](docs/images/actions.png)
+[![后置动作](docs/images/actions.png)](https://raw.githubusercontent.com/xiaoer2021/docsync/main/docs/images/actions.png)
 
 [查看完整操作截图：添加表单 → 子表 → 读数据 → 清洗规则 → 字段映射 → 写入目标 → 定时通知 → 测试运行](docs/USAGE.md)
 

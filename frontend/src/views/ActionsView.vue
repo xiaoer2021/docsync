@@ -122,7 +122,7 @@ onMounted(load);
       :closable="false"
       show-icon
       title="还没有后置动作"
-      description="典型用法：同步完通知观远刷新数据集，让看板立刻拿到新数据；或者往钉钉群发条消息，好知道今天跑成没跑成。一个动作里可以同时配这两件事。"
+      description="同步完成后调用下游接口刷新数据，或发送结果通知。一个动作可配置多个请求与通知渠道。"
     />
 
     <div v-else class="card">
